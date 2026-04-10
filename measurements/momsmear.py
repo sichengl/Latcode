@@ -13,7 +13,7 @@ import sys
 sys.path.append('/ccs/home/sicheng/LaMETLat')
 sys.path.append('/ccs/home/sicheng/LatCoding')
 from pyquda_benchmark.meas.mom_smearing import *
-
+import yaml
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--config",type=str)
@@ -26,7 +26,7 @@ if parameters.config:
     for k, v in cfg.items():
         setattr(parameters, k, v)
 
-
+print(vars(parameters))
 #transcribe parameters
 Ls = parameters.Ls
 Lt = parameters.Lt
@@ -51,11 +51,11 @@ latt_info = core.LatticeInfo([Ls, Ls, Ls, Lt], -1, 1.0)
 dirac = core.getDirac(latt_info, -0.05138, 1e-12, 1000, 1.0, 1.04243, 1.04243, [[4, 4, 4, 4],[2,2,2,3]])
 G5 = gamma.gamma(15)
 GT5 = gamma.gamma(7)
-momentum_list = [[i, 0, 0] for i in range(mon_min,mom_max)]
-t_src_list = list(range(0, Lt, Lt/n_t))
-x_src_list = list(range(0, Ls, Ls/n_s))
-y_src_list = list(range(0, Ls, Ls/n_s))
-z_src_list = list(range(0, Ls, Ls/n_s))
+momentum_list = [[i, 0, 0] for i in range(mom_min,mom_max)]
+t_src_list = list(range(0, Lt, Lt//n_t))
+x_src_list = list(range(0, Ls, Ls//n_s))
+y_src_list = list(range(0, Ls, Ls//n_s))
+z_src_list = list(range(0, Ls, Ls//n_s))
 measurement_list = list(range(start_cfg,stop_cfg,step))
 pion_45 = cp.zeros((len(measurement_list),len(t_src_list),len(x_src_list),len(y_src_list),len(z_src_list), len(momentum_list), latt_info.Lt), "<c16")
 pion_55 = cp.zeros((len(measurement_list),len(t_src_list),len(x_src_list),len(y_src_list),len(z_src_list), len(momentum_list), latt_info.Lt), "<c16")
@@ -194,7 +194,7 @@ if latt_info.mpi_rank == 0:
 
     mean_rsqr = mean_rsqr / count
 
-    with h5py.File(f"/lustre/orion/lgt132/scratch/sicheng/gluon_gpd_benchmark/pion_2pt/pion_smear{smear_steps}_mom{smear_mom_x_str}_G45_cfg{start_cfg}.h5", "w") as f:
+    with h5py.File(f"/lustre/orion/lgt132/scratch/sicheng/gluon_gpd_benchmark/pion_2pt/N{smear_steps}_G45/pion_smear{smear_steps}_mom{smear_mom_x_str}_G45_cfg{start_cfg}.h5", "w") as f:
         dset = f.create_dataset("pion_45", data=pion_45_np)
         dset.attrs["dim_spec"] = np.array(["measurement_list", "t_src_list","x_src_list","y_src_list","z_src_list","momentum_list", "time"], dtype=h5py.string_dtype())
         dset.attrs["measurements"] = measurement_list
@@ -206,7 +206,7 @@ if latt_info.mpi_rank == 0:
         dset.attrs["dim_time"] = np.arange(latt_info.Lt)
         dset.attrs["mean_rsqr"] = mean_rsqr
 
-    with h5py.File(f"pion_smear{smear_steps}_mom{smear_mom_x_str}_G5_cfg{start_cfg}.h5", "w") as f:
+    with h5py.File(f"/lustre/orion/lgt132/scratch/sicheng/gluon_gpd_benchmark/pion_2pt/N{smear_steps}_G5/pion_smear{smear_steps}_mom{smear_mom_x_str}_G5_cfg{start_cfg}.h5", "w") as f:
         dset = f.create_dataset("pion_55", data=pion_55_np)
         dset.attrs["dim_spec"] = np.array(["measurement_list", "t_src_list","x_src_list","y_src_list","z_src_list","momentum_list", "time"], dtype=h5py.string_dtype())
         dset.attrs["measurements"] = measurement_list

@@ -1,13 +1,13 @@
 import yaml
 
-N_nodes = 7
+N_nodes = 5
 cfg_per_job = 5
 monte_carlo_sep = 12
 
 smear_mom_x = 2.5
-start_cfg = 1480
-smear_steps = 40
-
+start_cfg = 1488
+smear_steps = 100
+rho = 7.845
 # ===== cfg list =====
 cfg_list = [
     start_cfg + i * monte_carlo_sep * cfg_per_job
@@ -19,10 +19,10 @@ for cfg in cfg_list:
     pars = {
         "Ls": 32,
         "Lt": 96,
-        "n": cfg_per_job,
-        "step": monte_carlo_sep,
+        "cfgs_to_meas": cfg_per_job,
+        "cfgs_step_size": monte_carlo_sep,
         "start_cfg": cfg,
-        "rho": 4.961,
+        "rho": rho,
         "smear_steps": smear_steps,
         "smear_mom": [smear_mom_x, 0, 0],
         "mom_min": -20,
