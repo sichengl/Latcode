@@ -3,8 +3,12 @@
 #it calculates the product of each set of list of loops, sum them with the parameter
 #then it replaces the four gauge links at each site with the four products, which are sum of one of the four list of loops, which are sumed with the parameter
 #Note the fourth component of Qij and Qi4 are not used
-#in this code summed fmunu is manually plotted to compare with pyerrors
 #modified to start with sep=0 for wilson line
+
+#==========================
+#For direction, xyzt
+#For data structure (index), tzyx
+
 from pyquda_utils import core, io, phase
 from pyquda_utils.core import X, Y, Z, T
 import cupy as cp
@@ -12,17 +16,33 @@ from opt_einsum import contract
 from pyquda_utils.core import LatticeFermion, LatticeGauge
 import matplotlib.pyplot as plt
 import h5py
+import numpy as np
+import json
+import argparse
+from cupy.cuda.runtime import deviceSynchronize
+from time import perf_counter
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--config", type=str, required=True)
+args = parser.parse_args()
+
+
 core.init([1, 1, 1, 1], resource_path="/lustre/orion/lgt132/scratch/sicheng/gluon_gpd_benchmark/.cache/quda")
-
-
+parameters = json.loads(args.config)
+start_cfg = parameters["cfg_n"]
+num_cfg = 5
 smear_len = 10
 smear_parts = 10
-measurement_list = list(range(1008,1008+12*2,12))
+measurement_list = list(range(start_cfg,start_cfg+num_cfg*12,12))
 src_list = list(range(0,6))
 sink_list = list(range(0,6))
 smear_list = list(range(0,10))
 wilson_line_list = list(range(0,32))
-momentum_list_sink = [[0, 0, 0], [0, 0, 1]]
+momentum_list_sink = []
+for px in [0, -1, 1]:
+    for py in [0, -1, 1]:
+        for pz in [0, -1, 1]:
+            momentum_list_sink.append([px, py, pz])
 
 for i_cfg,cfg in enumerate(measurement_list):
     gauge = io.readMILCGauge(f"/lustre/orion/lgt132/world-shared/DATA/MILC/a09m310/gauge/l3296f211b630m0074m037m440e.{cfg}")
@@ -31,8 +51,12 @@ for i_cfg,cfg in enumerate(measurement_list):
         momentum_phase_sink = phase.MomentumPhase(latt_info).getPhases(momentum_list_sink)
         corr = cp.zeros((len(measurement_list),len(src_list),len(sink_list),len(smear_list), len(wilson_line_list),len(momentum_list_sink),latt_info.Lt), "<c16")
     for i_smear, smear in enumerate(smear_list):
+        
+        deviceSynchronize()
+        s = perf_counter()        
         gauge.wilsonFlow(smear_len, 0.02)
-
+        deviceSynchronize()
+        core.getLogger().info(f"WILSON FLOW #{cfg}: {perf_counter() - s} secs")
         """
         gauge_fixing_params = {
         "gauge_dir": 4,
@@ -45,7 +69,9 @@ for i_cfg,cfg in enumerate(measurement_list):
             }
         gauge.fixingOVR(**gauge_fixing_params)
         """
-
+        
+        deviceSynchronize()
+        s = perf_counter()
         Qij = gauge.loop(
             [
                 [[X, Y, -X, -Y], [Y, -X, -Y, X], [-X, -Y, X, Y], [-Y, X, Y, -X]],
@@ -73,7 +99,7 @@ for i_cfg,cfg in enumerate(measurement_list):
         Fij = -1j / 8 * ( Qij - Qij_dagger )
         Fi4 = -1j / 8 * ( Qi4 - Qi4_dagger )
 
-        gauge_local = cp.asarray(gauge.data[1,:])
+        gauge_local = cp.asarray(gauge.data[2,:])
         gauge_local_conj = gauge_local.conj().swapaxes(-1,-2)
         
         #Fmunu = [ Fij.data[0,:] , Fij.data[1,:] , Fij.data[2,:] , Fi4.data[0,:] , Fi4.data[1,:] , Fi4.data[2,:] ]
@@ -87,20 +113,26 @@ for i_cfg,cfg in enumerate(measurement_list):
         ]
 
         Fmunu_shift = [arr.copy() for arr in Fmunu]
+        
+        deviceSynchronize()
+        core.getLogger().info(f"BEFORE SHIFT #{cfg}: {perf_counter() - s} secs")
 
+        deviceSynchronize()
+        s = perf_counter()
         for i_W, WL_indices in enumerate(wilson_line_list):
             
             #for wilson line with zero length skip shifting
             if i_W != 0:
-                Fmunu_shift = [ gauge_local_conj @ cp.roll(arr, shift=-1, axis=2) @ gauge_local  for arr in Fmunu]
+                Fmunu_shift = [ gauge_local @ cp.roll(arr[::-1], shift=-1, axis=2) @ gauge_local_conj  for arr in Fmunu_shift]
             
             for i_src, src in enumerate(src_list):
                 for i_sink, sink in enumerate(sink_list):
 
-                    corr[i_cfg,i_src,i_sink,i_smear,i_W] += contract("pwtzyx,wtzyxij,wtzyxji->pt", momentum_phase_sink,Fmunu_shift[i_src],Fmunu[i_sink])
+                    corr[i_cfg,i_src,i_sink,i_smear,i_W] += contract("pwtzyx,wtzyxij,wtzyxji->pt", momentum_phase_sink,Fmunu[i_src],Fmunu_shift[i_sink] )
 
 
-
+        deviceSynchronize()
+        core.getLogger().info(f"SHIFT #{cfg}: {perf_counter() - s} secs")
         
 
 
@@ -118,18 +150,18 @@ rank = getMPIRank()
 
 if rank == 0:
 
-    tmp = cp.mean(tmp,axis=6)
-    tmp_cpu = tmp.get()
-    filename = f"fmunu_corr_smear_{smear_len*len(smear_list)}_insteps_from0_MILC.h5"
+    tmp = np.mean(tmp,axis=6)
+    tmp_cpu = tmp
+    filename = f"/lustre/orion/lgt132/scratch/sicheng/gluon_gpd_benchmark/Fmunu/incomplete_corr/FFv2_smear_{smear_len*len(smear_list)}_cfg{start_cfg}.h5"
     with h5py.File(filename, 'w') as f:
         data = f.create_dataset('corr', data=tmp_cpu)
 
         data.attrs['number_of_steps_each_cycle'] = smear_len
         data.attrs['size_of_each_step'] = 0.02
         data.attrs['number_of_smears'] = smear_list
-        dset.attrs['wilson_line_list'] = wilson_line_list
-        dset.attrs['momentum_list_sink'] = momentum_list_sink
-        dset.attrs['config_list'] = measurement_list
+        data.attrs['wilson_line_list'] = wilson_line_list
+        data.attrs['momentum_list_sink'] = momentum_list_sink
+        data.attrs['config_list'] = measurement_list
     #cp.save(f"fmunu_corr_smear_{smear_len*smear_parts}_insteps_from0_MILC.npy",tmp)
 
     """ 
