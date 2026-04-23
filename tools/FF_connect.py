@@ -27,15 +27,17 @@ def concat_h5_in_directory(input_dir, output_dir, output_filename, dataset_name)
     print(f" Found {len(file_list)} .h5 files. Now merging them...")
 
     all_data = []
-    
+    saved_attrs = None
     #loop over files found
     for fname in file_list:
         try:
             with h5py.File(fname, "r") as f:
                 if dataset_name in f:
                     dset = f[dataset_name]
+                    if saved_attrs is None:
+                        saved_attrs = dict(dset.attrs)
                     data = dset[:]
-                    data = np.mean(data,axis=(-1))
+                    #data = np.mean(data,axis=(-1))
                     all_data.append(data)
                     print(f" File found with name: {fname.name}")
                 else:
@@ -56,8 +58,11 @@ def concat_h5_in_directory(input_dir, output_dir, output_filename, dataset_name)
 
     print(f"writing merged data to : {output_path}")
     with h5py.File(output_path, "w") as f:
-        f.create_dataset(dataset_name, data=complete_data)
-        
+        newdataset = f.create_dataset(dataset_name, data=complete_data)
+        if saved_attrs is not None:
+            for key, value in saved_attrs.items():
+                newdataset.attrs[key] = value
+            print(f"Successfully wrote {len(saved_attrs)} attributes.")
     print("Done")
 
 
@@ -65,7 +70,7 @@ def concat_h5_in_directory(input_dir, output_dir, output_filename, dataset_name)
 if __name__ == "__main__":
     concat_h5_in_directory(
         input_dir=f"/lustre/orion/lgt132/scratch/sicheng/gluon_gpd_benchmark/Fmunu/incomplete_corr",
-        output_dir=f"/lustre/orion/lgt132/scratch/sicheng/gluon_gpd_benchmark/complete_corr/",
-        output_filename=f"FF_corr_complete",
+        output_dir=f"/lustre/orion/lgt132/scratch/sicheng/gluon_gpd_benchmark/Fmunu/complete_corr/",
+        output_filename=f"FF_corr_complete_2.h5",
         dataset_name=f"corr"
     )
