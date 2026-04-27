@@ -3,6 +3,9 @@ import numpy as np
 from opt_einsum import contract
 from types import SimpleNamespace
 
+#==========================================================
+#Assemble the 3pt function of gluon GPD
+
 FFattrs = SimpleNamespace()
 psink_list = list(range(-5,6))
 q_list = []
