@@ -7,7 +7,7 @@ cfg_list = list(range(204, 1404, 6))
 tsrc_list = list(range(0, 96, 12))
 T = 96
 
-ff_template = "./FF_data/FF_opp_smear_410_cfg{cfg}.h5"
+ff_template = "./FF_data/FF_fixed_smear_410_cfg{cfg}.h5"
 pt2_template = (
     "./pion_2pt_functions/N40_G45_ez/"
     "pion_smear40_mom2p5_G45_ix{ix}_x{shifted_x}_cfg{cfg}.h5"
