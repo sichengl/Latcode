@@ -57,7 +57,7 @@ for itask in $(seq 0 $((N_TASKS - 1))); do
     srun -u --exclusive -N 1 -n 8 \
         --output="./log/2pt_logs/${cfg_name}_%j.out" \
         --error="./log/2pt_logs/${cfg_name}_%j.out" \
-        "${WRAPPER}" python3 2pt_ez_papersetup_rho.py --cfg $cfg --quark $QUARK_MOM_FRAC --rho $RHO &
+        "${WRAPPER}" python3 2pt_off_forward_production.py --cfg $cfg --quark $QUARK_MOM_FRAC --rho $RHO &
 	
     sleep 0.5s
 done
