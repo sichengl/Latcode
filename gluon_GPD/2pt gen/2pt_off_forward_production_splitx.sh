@@ -61,7 +61,7 @@ for task_id in $(seq 0 $((N_TASKS - 1))); do
     srun -u --exclusive -N 1 -n 8 \
         --output="./logs/splitx/${cfg_name}_%j.out" \
         --error="./logs/splitx/${cfg_name}_%j.out" \
-        "${WRAPPER}" python3 2pt_off_forward_production.py --cfg $cfg --ix $ix --quark $QUARK_MOM_FRAC --rho $RHO &
+        "${WRAPPER}" python3 2pt_off_forward_production_splitx.py --cfg $cfg --ix $ix --quark $QUARK_MOM_FRAC --rho $RHO &
 	
     sleep 0.5s
 done
