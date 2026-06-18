@@ -79,11 +79,11 @@ def process_one(task):
     outs = []
     for op_name, op_idx in operator_plot_list:
         fig_real_out = (
-            f"./plots_manual/{op_name}_realratio_{q_label}_{pf_label}_"
+            f"./ratio_plots_manual/{op_name}_realratio_{q_label}_{pf_label}_"
             f"w{w}_flow{tgf}_tsep{tsep_list}_cfgs{len(cfg_list)}.png"
         )
         fig_imag_out = (
-            f"./plots_manual/{op_name}_imagratio_{q_label}_{pf_label}_"
+            f"./ratio_plots_manual/{op_name}_imagratio_{q_label}_{pf_label}_"
             f"w{w}_flow{tgf}_tsep{tsep_list}_cfgs{len(cfg_list)}.png"
         )
 
