@@ -205,7 +205,7 @@ def process_one(task):
 
 
 if __name__ == "__main__":
-    os.makedirs("./plots_manual", exist_ok=True)
+    os.makedirs("./ratio_plots_manual", exist_ok=True)
     os.makedirs("./ratio_jk_manual", exist_ok=True)
 
     tasks = []
