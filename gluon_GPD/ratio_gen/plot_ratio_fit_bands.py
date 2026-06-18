@@ -1,0 +1,148 @@
+from pathlib import Path
+
+import h5py
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+RATIO_DIR = SCRIPT_DIR / "ratio_jk_manual"
+FIT_DIR = SCRIPT_DIR / "bare_matrix_element_jk"
+PLOT_DIR = SCRIPT_DIR / "ratio_fit_band_plots"
+
+CFG_LIST = list(range(204, 204 + 50 * 6, 6))
+TSEP_LIST = [4, 5, 6, 7, 8]
+Q_LIST = [(0, 0, 0), (1, 0, 0), (0, 1, 0)]
+PF_LIST = [(0, 0, pz) for pz in range(7)]
+W_LIST = [0, 1, 2, 3]
+TGF_LIST = [20, 25, 30, 35, 40]
+OPERATOR_LIST = ["TXTX", "TYTY"]
+FIT_TAG = "two_state"
+
+
+def jk_mean_err(jk_array):
+    n_jk = jk_array.shape[0]
+    avg = np.mean(jk_array, axis=0)
+    diff = jk_array - avg[None, ...]
+    err = np.sqrt((n_jk - 1.0) / n_jk * np.sum(diff**2, axis=0))
+    return avg, err
+
+
+def model_from_params(params, iw, tsep, tau_grid):
+    M00 = params["M00"][:, iw, None]
+    Ai = params["Ai"][:, iw, None]
+    Af = params["Af"][:, iw, None]
+    Afi = params["Afi"][:, iw, None]
+    dEi = params["dEi"][:, None]
+    dEf = params["dEf"][:, None]
+    tau = tau_grid[None, :]
+    t_minus_tau = tsep - tau
+    return (
+        M00
+        + Ai * np.exp(-dEi * tau)
+        + Af * np.exp(-dEf * t_minus_tau)
+        + Afi * np.exp(-dEi * tau - dEf * t_minus_tau)
+    )
+
+
+def plot_one(operator, q_tuple, pf_tuple, flow, w):
+    q_label = f"q{q_tuple[0]}_{q_tuple[1]}_{q_tuple[2]}"
+    pf_label = f"pf{pf_tuple[0]}_{pf_tuple[1]}_{pf_tuple[2]}"
+    ratio_path = RATIO_DIR / (
+        f"{operator}_ratio_jk_{q_label}_{pf_label}_"
+        f"w{w}_flow{flow}_tsep{TSEP_LIST}_cfgs{len(CFG_LIST)}.h5"
+    )
+    fit_path = FIT_DIR / (
+        f"{operator}_bareM_jk_{q_label}_{pf_label}_"
+        f"flow{flow}_fit{FIT_TAG}_cfgs{len(CFG_LIST)}.h5"
+    )
+
+    if not ratio_path.exists():
+        print(f"missing {ratio_path}", flush=True)
+        return
+    if not fit_path.exists():
+        print(f"missing {fit_path}", flush=True)
+        return
+
+    with h5py.File(ratio_path, "r") as f:
+        ratio_jk = f["ratio_jk"][:]
+        tsep_list = f["tsep_list"][:].astype(np.int64)
+
+    with h5py.File(fit_path, "r") as f:
+        w_list = f["w_list"][:].astype(np.int64)
+        if w not in w_list:
+            print(f"w={w} not in {fit_path}", flush=True)
+            return
+        iw = int(np.where(w_list == w)[0][0])
+        bare_jk = f["bare_matrix_element_jk"][:, iw]
+        params = {}
+        for part in ["real", "imag"]:
+            params[part] = {
+                name: f[f"fit_params_jk/{part}/{name}"][:]
+                for name in ["M00", "Ai", "Af", "Afi", "dEi", "dEf"]
+            }
+
+    PLOT_DIR.mkdir(parents=True, exist_ok=True)
+    colors = plt.cm.tab10(np.linspace(0, 1, len(tsep_list)))
+
+    for part in ["real", "imag"]:
+        fig, ax = plt.subplots(figsize=(9, 6))
+        data = ratio_jk.real if part == "real" else ratio_jk.imag
+        M_jk = bare_jk.real if part == "real" else bare_jk.imag
+        M_avg, M_err = jk_mean_err(M_jk)
+        ax.axhspan(M_avg - M_err, M_avg + M_err, color="0.7", alpha=0.25, label="M00 error")
+        ax.axhline(M_avg, color="k", linestyle="--", linewidth=1.2, label="M00 mean")
+
+        for itsep, tsep in enumerate(tsep_list):
+            tau = np.arange(0, int(tsep) + 1)
+            x = tau - 0.5 * int(tsep)
+            data_jk = data[:, itsep, tau]
+            data_avg, data_err = jk_mean_err(data_jk)
+
+            fit_tau = np.linspace(0, int(tsep), 200)
+            fit_x = fit_tau - 0.5 * int(tsep)
+            fit_jk = model_from_params(params[part], iw, int(tsep), fit_tau)
+            fit_avg, fit_err = jk_mean_err(fit_jk)
+
+            color = colors[itsep]
+            ax.fill_between(x, data_avg - data_err, data_avg + data_err, color=color, alpha=0.16)
+            ax.errorbar(
+                x,
+                data_avg,
+                yerr=data_err,
+                color=color,
+                marker="o",
+                linestyle="none",
+                capsize=3,
+                label=f"data T={int(tsep)}",
+            )
+            ax.fill_between(fit_x, fit_avg - fit_err, fit_avg + fit_err, color=color, alpha=0.22)
+            ax.plot(fit_x, fit_avg, color=color, linewidth=1.8, label=f"fit T={int(tsep)}")
+
+        ax.axvline(0, color="0.2", linestyle=":", linewidth=1)
+        ax.set_xlabel(r"$\tau - T/2$")
+        ax.set_ylabel(f"{part} ratio")
+        ax.set_title(f"{operator} {part}; q={q_tuple}; pf={pf_tuple}; w={w}; flow={flow}")
+        ax.legend(fontsize=8, ncol=2)
+        fig.tight_layout()
+        out_path = PLOT_DIR / f"{operator}_{part}_{q_label}_{pf_label}_w{w}_flow{flow}.png"
+        fig.savefig(out_path, dpi=300)
+        plt.close(fig)
+        print(f"saved {out_path}", flush=True)
+
+
+def main():
+    n_tasks = len(OPERATOR_LIST) * len(Q_LIST) * len(PF_LIST) * len(TGF_LIST) * len(W_LIST)
+    print(f"total plot tasks = {n_tasks}", flush=True)
+    for operator in OPERATOR_LIST:
+        for q_tuple in Q_LIST:
+            for pf_tuple in PF_LIST:
+                for flow in TGF_LIST:
+                    for w in W_LIST:
+                        plot_one(operator, q_tuple, pf_tuple, flow, w)
+
+
+if __name__ == "__main__":
+    main()
