@@ -14,13 +14,13 @@ import numpy as np
 
 
 INPUT_DIR = Path(
-    r"/lustre/orion/lgt132/scratch/sicheng/GPD_calc_v3/ratio_production/bare_matrix_element_jk"
+    r"/lustre/orion/lgt132/scratch/sicheng/GPD_calc_v3/ratio_production/bare_matrix_element_jk_400cfgs"
 )
 PLOT_DIR = Path(
     r"/lustre/orion/lgt132/scratch/sicheng/GPD_calc_v3/ratio_production/bare_matrix_element_w_plots"
 )
 
-CFG_NUM = 200
+CFG_NUM = 400
 FIT_TAG = "two_state"
 
 OPERATOR_LIST = ["TXTX", "TYTY"]
